@@ -1,7 +1,32 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useCampusStore } from '../stores/campusStore'
 
 const store = useCampusStore()
+
+// 动态路线数据——根据导航目标生成
+const routeInfo = computed(() => {
+  const target = store.navigateTarget
+  if (!target) return null
+  const bld = store.findBuildingByName(target)
+  if (!bld) return { name: target, steps: ['目标暂未定位'], distance: '未知', time: '未知' }
+
+  // 根据楼栋位置生成模拟路线
+  const routes: Record<string, { steps: string[], distance: string, time: string }> = {
+    '商大楼': { steps: ['沿主路直行约 80 米', '在第一个路口左转', '前行 60 米即到'], distance: '约 180 米', time: '约 3 分钟' },
+    '信息楼': { steps: ['沿主路直行约 100 米', '在十字路口左转', '前行 120 米，左手边即是'], distance: '约 260 米', time: '约 4 分钟' },
+    '图书馆': { steps: ['沿主路直行约 120 米', '在十字路口右转', '前行 80 米，右手边即是'], distance: '约 280 米', time: '约 5 分钟' },
+    '艺术楼': { steps: ['沿主路直行约 150 米', '在第二个路口右转', '前行 100 米即到'], distance: '约 320 米', time: '约 5 分钟' },
+    '综合楼': { steps: ['沿主路直行约 50 米', '在广场处右转', '前行 40 米即到'], distance: '约 120 米', time: '约 2 分钟' },
+  }
+  const route = routes[bld.name] || { steps: ['沿校园主路前行'], distance: '约 200 米', time: '约 4 分钟' }
+  return { name: bld.name, steps: route.steps, distance: route.distance, time: route.time }
+})
+
+function navigateTo(buildingName: string) {
+  store.navigateTarget = buildingName
+  store.handleUserInput(`带我去${buildingName}`)
+}
 </script>
 
 <template>
@@ -24,44 +49,46 @@ const store = useCampusStore()
         <div class="text-[10px] text-cyan-600 mt-1">系统自动规避楼梯路段，优先规划电梯/坡道路线</div>
       </div>
 
-      <!-- 路线步骤 -->
-      <div class="space-y-2">
-        <div class="flex items-center gap-3">
-          <div class="w-7 h-7 rounded-full bg-cyan-600 text-white flex items-center justify-center text-xs font-bold shrink-0">起</div>
-          <div>
-            <div class="text-sm font-medium text-slate-800">当前位置（校门口）</div>
-            <div class="text-[10px] text-slate-400">面向校园主路</div>
-          </div>
-        </div>
-        <div class="ml-3 border-l-2 border-dashed border-cyan-300 pl-6 py-2 space-y-3">
+      <!-- 动态路线步骤 -->
+      <template v-if="routeInfo">
+        <div class="space-y-2">
           <div class="flex items-center gap-3">
-            <div class="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] text-slate-600 shrink-0">1</div>
-            <div class="text-xs text-slate-600">沿主路直行约 120 米</div>
+            <div class="w-7 h-7 rounded-full bg-cyan-600 text-white flex items-center justify-center text-xs font-bold shrink-0">起</div>
+            <div>
+              <div class="text-sm font-medium text-slate-800">当前位置（校门口）</div>
+              <div class="text-[10px] text-slate-400">面向校园主路</div>
+            </div>
           </div>
-          <div class="flex items-center gap-3">
-            <div class="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] text-slate-600 shrink-0">2</div>
-            <div class="text-xs text-slate-600">在十字路口右转</div>
+          <div class="ml-3 border-l-2 border-dashed border-cyan-300 pl-6 py-2 space-y-3">
+            <div v-for="(step, i) in routeInfo.steps" :key="i" class="flex items-center gap-3">
+              <div class="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] text-slate-600 shrink-0">{{ i + 1 }}</div>
+              <div class="text-xs text-slate-600">{{ step }}</div>
+            </div>
           </div>
           <div class="flex items-center gap-3">
-            <div class="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] text-slate-600 shrink-0">3</div>
-            <div class="text-xs text-slate-600">前行 80 米，右手边即是</div>
+            <div class="w-7 h-7 rounded-full bg-green-600 text-white flex items-center justify-center text-xs font-bold shrink-0">终</div>
+            <div>
+              <div class="text-sm font-medium text-slate-800">{{ routeInfo.name }}</div>
+              <div class="text-[10px] text-slate-400">预计步行 {{ routeInfo.time }} · {{ routeInfo.distance }}</div>
+            </div>
           </div>
         </div>
-        <div class="flex items-center gap-3">
-          <div class="w-7 h-7 rounded-full bg-green-600 text-white flex items-center justify-center text-xs font-bold shrink-0">终</div>
-          <div>
-            <div class="text-sm font-medium text-slate-800">图书馆</div>
-            <div class="text-[10px] text-slate-400">预计步行 5 分钟 · 约 280 米</div>
-          </div>
+      </template>
+      <template v-else>
+        <div class="text-center text-slate-400 text-sm py-4">
+          <p>告诉我你要去哪里</p>
+          <p class="text-xs mt-1">例如："带我去图书馆"</p>
         </div>
-      </div>
+      </template>
 
-      <!-- 目的地列表 -->
+      <!-- 目的地列表（可点击） -->
       <div class="border-t border-slate-200 pt-3">
         <div class="text-xs text-slate-500 mb-2">常见目的地</div>
         <div class="flex flex-wrap gap-1.5">
           <button v-for="b in store.buildings" :key="b.id"
-            class="text-[11px] px-2.5 py-1 rounded-full border border-slate-200 text-slate-600 hover:bg-cyan-50 hover:border-cyan-400 hover:text-cyan-700 transition-colors cursor-pointer">
+            @click="navigateTo(b.name)"
+            class="text-[11px] px-2.5 py-1 rounded-full border transition-colors cursor-pointer"
+            :class="store.navigateTarget === b.name ? 'bg-cyan-600 text-white border-cyan-600' : 'border-slate-200 text-slate-600 hover:bg-cyan-50 hover:border-cyan-400 hover:text-cyan-700'">
             {{ b.name }}
           </button>
         </div>

@@ -1,9 +1,24 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useCampusStore } from '../stores/campusStore'
 
 const store = useCampusStore()
 const desc = ref('')
+
+// 从 store 获取 Agent 解析出的设备类型，或让用户手动选择
+const selectedDevice = ref('')
+const deviceType = computed(() => selectedDevice.value || store.repairDeviceSlot || 'projector')
+
+const deviceOptions = [
+  { value: 'projector', label: '投影仪' },
+  { value: 'ac', label: '空调' },
+  { value: 'light', label: '灯光' },
+  { value: 'mic', label: '麦克风' },
+]
+
+// Agent 设置 repairDeviceSlot 时自动同步
+import { watch } from 'vue'
+watch(() => store.repairDeviceSlot, (v) => { if (v) selectedDevice.value = v })
 
 function getBuildingForRoom(roomId: string): string {
   for (const b of store.buildings)
@@ -27,8 +42,9 @@ function submit() {
   const room = store.selectedRoom
   if (!room) return
   const d = desc.value.trim() || '设备故障需维修'
-  store.submitRepair(room.id, 'projector', d)
+  store.submitRepair(room.id, deviceType.value, d)
   desc.value = ''
+  selectedDevice.value = ''
 }
 </script>
 
@@ -47,6 +63,18 @@ function submit() {
         <div class="bg-red-50 rounded-lg p-3 border border-red-200">
           <div class="text-xs text-red-600 font-medium mb-1">故障位置</div>
           <div class="text-sm font-semibold text-slate-800">{{ getBuildingForRoom(store.selectedRoom.id) }} {{ store.selectedRoom.name }}</div>
+        </div>
+        <!-- 设备类型选择 -->
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">故障设备</label>
+          <div class="flex flex-wrap gap-1.5">
+            <button v-for="opt in deviceOptions" :key="opt.value"
+              @click="selectedDevice = opt.value"
+              class="text-[11px] px-2.5 py-1 rounded-full border transition-colors cursor-pointer"
+              :class="deviceType === opt.value ? 'bg-orange-500 text-white border-orange-500' : 'border-slate-200 text-slate-600 hover:border-orange-300'">
+              {{ opt.label }}
+            </button>
+          </div>
         </div>
         <div>
           <label class="text-xs text-slate-500 block mb-1">故障描述</label>

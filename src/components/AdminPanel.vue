@@ -48,16 +48,27 @@ function renderCharts() {
 
   if (chartEnergy.value) {
     const c = echarts.init(chartEnergy.value)
+    // 用 store.energy 的每日总量按比例分配到模拟小时曲线
+    const hours = ['06:00','08:00','10:00','12:00','14:00','16:00','18:00','20:00']
+    const hourlyRatios = [0.06, 0.14, 0.22, 0.16, 0.24, 0.20, 0.14, 0.08] // 各时段占比
+    const colors = ['#3b82f6', '#a78bfa', '#34d399', '#fb923c', '#f472b6']
+    const series = store.buildings.map((bld, i) => {
+      const dailyKwh = store.energy.find(e => e.buildingId === bld.id)?.kwh || 200
+      return {
+        name: bld.name,
+        type: 'line' as const,
+        smooth: true,
+        data: hourlyRatios.map(r => Math.round(dailyKwh * r)),
+        lineStyle: { width: 2, color: colors[i % colors.length] },
+        itemStyle: { color: colors[i % colors.length] },
+      }
+    })
     c.setOption({
       tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: ['06:00','08:00','10:00','12:00','14:00','16:00','18:00','20:00'], axisLabel: { fontSize: 10 } },
+      xAxis: { type: 'category', data: hours, axisLabel: { fontSize: 10 } },
       yAxis: { type: 'value', axisLabel: { formatter: '{value} kWh', fontSize: 10 } },
-      series: [
-        { name: '商大楼', type: 'line', smooth: true, data: [20,45,80,65,90,85,55,30], lineStyle: { width: 2 } },
-        { name: '信息楼', type: 'line', smooth: true, data: [15,55,70,50,75,65,40,20], lineStyle: { width: 2 } },
-        { name: '图书馆', type: 'line', smooth: true, data: [10,30,50,45,55,60,70,45], lineStyle: { width: 2 } },
-      ],
-      legend: { top: 0, textStyle: { fontSize: 10 } },
+      series,
+      legend: { top: 0, textStyle: { fontSize: 9 }, itemWidth: 12 },
       grid: { left: 50, right: 10, top: 30, bottom: 30 },
     })
     charts.push(c)

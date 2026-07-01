@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Building, Device, Booking, Ticket, Energy, Traffic, User, Room, PanelType, ChatMsg, DispatchStep } from '../types/campus'
+import type { Building, Device, Booking, Ticket, Energy, Traffic, User, Room, PanelType, ChatMsg, DispatchStep, Intent } from '../types/campus'
 import { parseIntent } from '../utils/intentParser'
 
 // ============ Mock 数据 ============
@@ -145,6 +145,8 @@ export const useCampusStore = defineStore('campus', () => {
   const highlightedRooms = ref<{ ids: string[], color: string }>({ ids: [], color: '' })
   const selectedRoom = ref<Room | null>(null)
   const candidateRooms = ref<Room[]>([])
+  const navigateTarget = ref<string>('')
+  const repairDeviceSlot = ref<string>('')
 
   // 计算属性
   const allRooms = computed(() => {
@@ -242,7 +244,7 @@ export const useCampusStore = defineStore('campus', () => {
     chatMessages.value[msgIdx] = { ...chatMessages.value[msgIdx], steps: [...steps] }
   }
 
-  async function handleBookRoom(intent: ReturnType<typeof parseIntent>, steps: DispatchStep[], msgIdx: number) {
+  async function handleBookRoom(intent: Intent, steps: DispatchStep[], msgIdx: number) {
     const equipNeed = intent.slots.equipment || []
     let candidates = allRooms.value.filter(r =>
       (r.type === 'meeting' || r.type === 'venue') && r.status !== 'repair'
@@ -278,7 +280,7 @@ export const useCampusStore = defineStore('campus', () => {
     }
   }
 
-  async function handleFindFree(intent: ReturnType<typeof parseIntent>, steps: DispatchStep[], msgIdx: number) {
+  async function handleFindFree(intent: Intent, steps: DispatchStep[], msgIdx: number) {
     let candidates = allRooms.value.filter(r => r.type === 'classroom' && r.status === 'free')
     if (intent.slots.building) {
       const bld = findBuildingByName(intent.slots.building)
@@ -306,7 +308,7 @@ export const useCampusStore = defineStore('campus', () => {
     }
   }
 
-  async function handleRepair(intent: ReturnType<typeof parseIntent>, steps: DispatchStep[], msgIdx: number) {
+  async function handleRepair(intent: Intent, steps: DispatchStep[], msgIdx: number) {
     let targetRoom: Room | null = null
     if (intent.slots.room && intent.slots.building) {
       targetRoom = findRoomByNameAndBuilding(intent.slots.room, intent.slots.building)
@@ -321,6 +323,7 @@ export const useCampusStore = defineStore('campus', () => {
     if (targetRoom) {
       setHighlight([targetRoom.id], '#ef4444')
       selectedRoom.value = targetRoom
+      repairDeviceSlot.value = intent.slots.device || ''
     }
     activePanel.value = 'repair'
     steps[2].status = 'done'
@@ -334,12 +337,13 @@ export const useCampusStore = defineStore('campus', () => {
     }
   }
 
-  async function handleNavigate(intent: ReturnType<typeof parseIntent>, steps: DispatchStep[], msgIdx: number) {
+  async function handleNavigate(intent: Intent, steps: DispatchStep[], msgIdx: number) {
     const target = intent.slots.target || intent.slots.building || ''
     const targetBld = target ? findBuildingByName(target) : null
 
     steps[1].status = 'done'
     steps[1].detail = targetBld ? `目标: ${targetBld.name}` : '未找到目标位置'
+    navigateTarget.value = targetBld ? targetBld.name : target
 
     steps[2].status = 'running'
     if (targetBld) {
@@ -358,7 +362,7 @@ export const useCampusStore = defineStore('campus', () => {
     }
   }
 
-  async function handleAdmin(_intent: ReturnType<typeof parseIntent>, steps: DispatchStep[], msgIdx: number) {
+  async function handleAdmin(_intent: Intent, steps: DispatchStep[], msgIdx: number) {
     steps[1].status = 'done'
     steps[1].detail = '汇总全校态势数据'
     steps[2].status = 'done'
@@ -394,9 +398,11 @@ export const useCampusStore = defineStore('campus', () => {
     const room = findRoomById(roomId)
     if (!room) return
     room.status = 'repair'
+    // 查找真实设备 ID，找不到则用类型字符串兜底
+    const device = devices.value.find(d => d.roomId === roomId && d.type === deviceType)
     const newTicket: Ticket = {
       id: `tk_${Date.now()}`,
-      deviceId: deviceType,
+      deviceId: device?.id || deviceType,
       roomId,
       desc,
       status: 'new',
@@ -432,8 +438,10 @@ export const useCampusStore = defineStore('campus', () => {
   return {
     buildings, devices, bookings, tickets, energy, traffic, currentUser,
     activePanel, chatMessages, highlightedRooms, selectedRoom, candidateRooms,
+    navigateTarget, repairDeviceSlot,
     allRooms, totalRooms, freeRooms, busyRooms, repairRooms, occupancyRate, totalEnergy, totalTraffic,
-    findRoomById, findBuildingByName, setHighlight, clearHighlight, addMessage,
+    findRoomById, findBuildingByName, findRoomByNameAndBuilding,
+    setHighlight, clearHighlight, addMessage,
     handleUserInput, confirmBooking, submitRepair, advanceTicket, getRoomFullName,
   }
 })
