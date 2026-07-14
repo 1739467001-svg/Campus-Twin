@@ -11,9 +11,11 @@ let charts: echarts.ECharts[] = []
 
 onMounted(() => {
   renderCharts()
+  window.addEventListener('resize', handleResize)
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
   charts.forEach(c => c.dispose())
   charts = []
 })
@@ -24,12 +26,23 @@ watch(() => store.activePanel, (v) => {
   }
 })
 
+function handleResize() {
+  charts.forEach(c => c.resize())
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 function renderCharts() {
   charts.forEach(c => c.dispose())
   charts = []
 
   if (chartOccupy.value) {
-    const c = echarts.init(chartOccupy.value)
+    const c = echarts.init(chartOccupy.value, 'dark')
     const bldNames = store.buildings.map(b => b.name)
     const rates = store.buildings.map(b => {
       const rooms = b.floors.flatMap(f => f.rooms)
@@ -37,56 +50,112 @@ function renderCharts() {
       return rooms.length ? Math.round((busy / rooms.length) * 100) : 0
     })
     c.setOption({
-      tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: bldNames, axisLabel: { fontSize: 10 } },
-      yAxis: { type: 'value', max: 100, axisLabel: { formatter: '{value}%', fontSize: 10 } },
-      series: [{ type: 'bar', data: rates, itemStyle: { color: '#3b82f6', borderRadius: [4, 4, 0, 0] } }],
-      grid: { left: 40, right: 10, top: 10, bottom: 30 },
+      tooltip: { 
+        trigger: 'axis', 
+        backgroundColor: 'rgba(17, 24, 39, 0.95)', 
+        borderColor: '#2d3a4f', 
+        textStyle: { color: '#f1f5f9' },
+        axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(14, 165, 233, 0.1)' } }
+      },
+      xAxis: { type: 'category', data: bldNames, axisLabel: { fontSize: 10, color: '#94a3b8' }, axisLine: { lineStyle: { color: '#2d3a4f' } }, axisTick: { show: false } },
+      yAxis: { type: 'value', max: 100, axisLabel: { formatter: '{value}%', fontSize: 10, color: '#94a3b8' }, axisLine: { lineStyle: { color: '#2d3a4f' } }, splitLine: { lineStyle: { color: '#1e2a3d', type: 'dashed' } }, axisTick: { show: false } },
+      series: [{ 
+        type: 'bar', 
+        data: rates, 
+        barWidth: '50%',
+        itemStyle: { 
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: '#38bdf8' },
+            { offset: 1, color: '#0ea5e9' }
+          ]),
+          borderRadius: [4, 4, 0, 0] 
+        },
+        emphasis: {
+          itemStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: '#7dd3fc' },
+              { offset: 1, color: '#38bdf8' }
+            ])
+          }
+        }
+      }],
+      grid: { left: 40, right: 10, top: 15, bottom: 30 },
     })
     charts.push(c)
   }
 
   if (chartEnergy.value) {
-    const c = echarts.init(chartEnergy.value)
-    // 用 store.energy 的每日总量按比例分配到模拟小时曲线
+    const c = echarts.init(chartEnergy.value, 'dark')
     const hours = ['06:00','08:00','10:00','12:00','14:00','16:00','18:00','20:00']
-    const hourlyRatios = [0.06, 0.14, 0.22, 0.16, 0.24, 0.20, 0.14, 0.08] // 各时段占比
-    const colors = ['#3b82f6', '#a78bfa', '#34d399', '#fb923c', '#f472b6']
+    const hourlyRatios = [0.06, 0.14, 0.22, 0.16, 0.24, 0.20, 0.14, 0.08]
+    const colors = ['#0ea5e9', '#699169', '#ffb800', '#a78bfa', '#34d399']
     const series = store.buildings.map((bld, i) => {
       const dailyKwh = store.energy.find(e => e.buildingId === bld.id)?.kwh || 200
+      const color = colors[i % colors.length]
       return {
         name: bld.name,
         type: 'line' as const,
         smooth: true,
+        symbol: 'circle',
+        symbolSize: 4,
         data: hourlyRatios.map(r => Math.round(dailyKwh * r)),
-        lineStyle: { width: 2, color: colors[i % colors.length] },
-        itemStyle: { color: colors[i % colors.length] },
+        lineStyle: { width: 2.5, color },
+        itemStyle: { color, borderColor: '#111827', borderWidth: 2 },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: hexToRgba(color, 0.3) },
+            { offset: 1, color: hexToRgba(color, 0) }
+          ])
+        },
+        emphasis: {
+          scale: true,
+          itemStyle: { borderWidth: 3 }
+        }
       }
     })
     c.setOption({
-      tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: hours, axisLabel: { fontSize: 10 } },
-      yAxis: { type: 'value', axisLabel: { formatter: '{value} kWh', fontSize: 10 } },
+      tooltip: { 
+        trigger: 'axis', 
+        backgroundColor: 'rgba(17, 24, 39, 0.95)', 
+        borderColor: '#2d3a4f', 
+        textStyle: { color: '#f1f5f9' },
+        axisPointer: { type: 'cross', lineStyle: { color: '#2d3a4f', type: 'dashed' } }
+      },
+      xAxis: { type: 'category', data: hours, axisLabel: { fontSize: 10, color: '#94a3b8' }, axisLine: { lineStyle: { color: '#2d3a4f' } }, axisTick: { show: false } },
+      yAxis: { type: 'value', axisLabel: { formatter: '{value} kWh', fontSize: 10, color: '#94a3b8' }, axisLine: { lineStyle: { color: '#2d3a4f' } }, splitLine: { lineStyle: { color: '#1e2a3d', type: 'dashed' } }, axisTick: { show: false } },
       series,
-      legend: { top: 0, textStyle: { fontSize: 9 }, itemWidth: 12 },
-      grid: { left: 50, right: 10, top: 30, bottom: 30 },
+      legend: { top: 5, textStyle: { fontSize: 9, color: '#cbd5e1' }, itemWidth: 12, itemHeight: 6 },
+      grid: { left: 50, right: 10, top: 35, bottom: 30 },
     })
     charts.push(c)
   }
 
   if (chartTraffic.value) {
-    const c = echarts.init(chartTraffic.value)
+    const c = echarts.init(chartTraffic.value, 'dark')
     const data = store.traffic.map(t => ({
       name: store.buildings.find(b => b.id === t.zoneId)?.name || t.zoneId,
       value: t.count,
     }))
     c.setOption({
-      tooltip: { trigger: 'item' },
+      tooltip: { 
+        trigger: 'item', 
+        backgroundColor: 'rgba(17, 24, 39, 0.95)', 
+        borderColor: '#2d3a4f', 
+        textStyle: { color: '#f1f5f9' },
+        formatter: (params: any) => `${params.name}<br/>人数: ${params.value} (${params.percent}%)`
+      },
       series: [{
-        type: 'pie', radius: ['35%', '65%'],
+        type: 'pie', 
+        radius: ['45%', '70%'],
+        center: ['50%', '50%'],
         data,
-        label: { fontSize: 10 },
-        itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
+        label: { fontSize: 10, color: '#cbd5e1', formatter: '{b}\n{c}人' },
+        labelLine: { lineStyle: { color: '#2d3a4f' } },
+        itemStyle: { borderRadius: 6, borderColor: '#111827', borderWidth: 3, color: ['#0ea5e9', '#699169', '#ffb800', '#a78bfa', '#34d399'] },
+        emphasis: {
+          scale: true,
+          itemStyle: { shadowBlur: 10, shadowColor: 'rgba(14, 165, 233, 0.3)' }
+        }
       }],
     })
     charts.push(c)
@@ -95,59 +164,82 @@ function renderCharts() {
 </script>
 
 <template>
-  <div class="animate-slideUp">
-    <div class="px-4 py-3 border-b border-slate-100 bg-white">
-      <h3 class="font-semibold text-slate-800 text-sm flex items-center gap-2">
-        <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>
-        管理态势看板
-      </h3>
-      <p class="text-[11px] text-slate-400 mt-0.5">演示数据 · 全校一屏掌握</p>
+  <div class="animate-slide-up">
+    <div class="px-4 py-3 border-b border-zjgsu-blue-500/20 bg-zjgsu-blue-900/40">
+      <h3 class="font-semibold text-white text-xs">管理态势看板</h3>
+      <p class="text-[10px] text-zjgsu-blue-200/70 mt-0.5">实时监控校园资源使用情况，智能分析各项指标数据</p>
     </div>
 
-    <!-- KPI 卡片 -->
     <div class="grid grid-cols-2 gap-2 p-3">
-      <div class="bg-blue-50 rounded-xl p-3 text-center">
-        <div class="text-2xl font-bold text-blue-700">{{ store.occupancyRate }}%</div>
-        <div class="text-[11px] text-blue-500">全校占用率</div>
-      </div>
-      <div class="bg-green-50 rounded-xl p-3 text-center">
-        <div class="text-2xl font-bold text-green-700">{{ store.freeRooms }}</div>
-        <div class="text-[11px] text-green-500">空闲房间</div>
-      </div>
-      <div class="bg-amber-50 rounded-xl p-3 text-center">
-        <div class="text-2xl font-bold text-amber-700">{{ store.totalEnergy }}<span class="text-sm">kWh</span></div>
-        <div class="text-[11px] text-amber-500">今日能耗</div>
-      </div>
-      <div class="bg-purple-50 rounded-xl p-3 text-center">
-        <div class="text-2xl font-bold text-purple-700">{{ store.totalTraffic }}</div>
-        <div class="text-[11px] text-purple-500">实时人流</div>
-      </div>
-    </div>
-
-    <!-- 图表 -->
-    <div class="px-3 pb-3 space-y-3">
-      <div class="bg-white rounded-xl border border-slate-200 p-3">
-        <div class="text-xs font-medium text-slate-700 mb-2">各楼宇占用率</div>
-        <div ref="chartOccupy" class="w-full h-36"></div>
-      </div>
-      <div class="bg-white rounded-xl border border-slate-200 p-3">
-        <div class="text-xs font-medium text-slate-700 mb-2">能耗趋势（今日）</div>
-        <div ref="chartEnergy" class="w-full h-40"></div>
-      </div>
-      <div class="bg-white rounded-xl border border-slate-200 p-3">
-        <div class="text-xs font-medium text-slate-700 mb-2">人流分布</div>
-        <div ref="chartTraffic" class="w-full h-36"></div>
-      </div>
-    </div>
-
-    <!-- 异常提示 -->
-    <div v-if="store.repairRooms > 0" class="px-3 pb-3">
-      <div class="bg-red-50 border border-red-200 rounded-xl p-3">
-        <div class="text-xs font-semibold text-red-700 flex items-center gap-1">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" /></svg>
-          异常提示
+      <div class="bg-zjgsu-blue-950/30 rounded-lg p-2.5 border border-zjgsu-blue-500/15 hover:border-zjgsu-blue-400/30 transition-all duration-300">
+        <div class="text-[9px] text-zjgsu-blue-200/60 font-medium mb-1">全校占用率</div>
+        <div class="text-xl font-bold text-zjgsu-blue-400">{{ store.occupancyRate }}%</div>
+        <div class="mt-1.5 h-1.5 bg-zjgsu-blue-900/50 rounded-full overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-zjgsu-blue-400 to-zjgsu-blue-500/60 rounded-full" :style="{ width: store.occupancyRate + '%' }"></div>
         </div>
-        <div class="text-[11px] text-red-600 mt-1">当前有 {{ store.repairRooms }} 间房间处于报修状态，建议关注处理进度。</div>
+        <div class="text-[9px] text-zjgsu-blue-200/50 mt-1">较昨日下降 3%</div>
+      </div>
+      <div class="bg-zjgsu-blue-950/30 rounded-lg p-2.5 border border-zjgsu-blue-500/15 hover:border-green-500/30 transition-all duration-300">
+        <div class="text-[9px] text-zjgsu-blue-200/60 font-medium mb-1">空闲房间</div>
+        <div class="text-xl font-bold text-green-400">{{ store.freeRooms }}</div>
+        <div class="text-[9px] text-zjgsu-blue-200/50 mt-1">可立即预约使用</div>
+      </div>
+      <div class="bg-zjgsu-blue-950/30 rounded-lg p-2.5 border border-zjgsu-blue-500/15 hover:border-zjgsu-gold-500/30 transition-all duration-300">
+        <div class="text-[9px] text-zjgsu-blue-200/60 font-medium mb-1">今日能耗</div>
+        <div class="text-xl font-bold text-zjgsu-gold-400">{{ store.totalEnergy }}<span class="text-[10px] ml-0.5">kWh</span></div>
+        <div class="text-[9px] text-zjgsu-blue-200/50 mt-1">预计电费 ¥{{ Math.round(store.totalEnergy * 0.65) }}</div>
+      </div>
+      <div class="bg-zjgsu-blue-950/30 rounded-lg p-2.5 border border-zjgsu-blue-500/15 hover:border-zjgsu-blue-400/30 transition-all duration-300">
+        <div class="text-[9px] text-zjgsu-blue-200/60 font-medium mb-1">实时人流</div>
+        <div class="text-xl font-bold text-zjgsu-blue-400">{{ store.totalTraffic }}</div>
+        <div class="text-[9px] text-zjgsu-blue-200/50 mt-1">较昨日增长 12%</div>
+      </div>
+    </div>
+
+    <div class="px-3 pb-3 space-y-3">
+      <div class="bg-zjgsu-blue-950/20 rounded-lg border border-zjgsu-blue-500/15 p-3 hover:border-zjgsu-blue-400/20 transition-all duration-300">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[11px] font-medium text-zjgsu-blue-100">各楼宇占用率</span>
+          <span class="text-[9px] text-zjgsu-blue-200/60 bg-zjgsu-blue-900/50 px-1.5 py-0.5 rounded">实时</span>
+        </div>
+        <div ref="chartOccupy" class="w-full h-32"></div>
+        <div class="mt-2 flex items-center justify-between text-[9px] text-zjgsu-blue-200/50">
+          <span>最高: 经管楼 68%</span>
+          <span>最低: 艺术楼 23%</span>
+        </div>
+      </div>
+      <div class="bg-zjgsu-blue-950/20 rounded-lg border border-zjgsu-blue-500/15 p-3 hover:border-zjgsu-blue-400/20 transition-all duration-300">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[11px] font-medium text-zjgsu-blue-100">能耗趋势（今日）</span>
+          <span class="text-[9px] text-zjgsu-blue-200/60 bg-zjgsu-blue-900/50 px-1.5 py-0.5 rounded">统计</span>
+        </div>
+        <div ref="chartEnergy" class="w-full h-36"></div>
+        <div class="mt-2 flex items-center justify-between text-[9px] text-zjgsu-blue-200/50">
+          <span>峰值: 14:00 380 kWh</span>
+          <span>均值: 240 kWh/h</span>
+        </div>
+      </div>
+      <div class="bg-zjgsu-blue-950/20 rounded-lg border border-zjgsu-blue-500/15 p-3 hover:border-zjgsu-blue-400/20 transition-all duration-300">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[11px] font-medium text-zjgsu-blue-100">人流分布</span>
+          <span class="text-[9px] text-zjgsu-blue-200/60 bg-zjgsu-blue-900/50 px-1.5 py-0.5 rounded">监测</span>
+        </div>
+        <div ref="chartTraffic" class="w-full h-32"></div>
+        <div class="mt-2 flex items-center justify-between text-[9px] text-zjgsu-blue-200/50">
+          <span>密集区: 图书馆</span>
+          <span>疏散区: 体育馆</span>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="store.repairRooms > 0" class="px-3 pb-3">
+      <div class="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+        <div class="text-[11px] font-semibold text-red-400 mb-1.5">异常提示</div>
+        <div class="text-[10px] text-red-400/80">当前有 {{ store.repairRooms }} 间房间处于报修状态，建议及时关注并处理维修进度，确保教学与办公秩序正常。</div>
+        <div class="mt-2 flex items-center gap-2">
+          <span class="text-[9px] text-red-400/60">报修位置:</span>
+          <span class="text-[9px] text-red-400/80">教学楼B栋 · 图书馆三楼 · 体育馆东侧</span>
+        </div>
       </div>
     </div>
   </div>

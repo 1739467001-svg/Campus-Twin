@@ -82,7 +82,7 @@ export interface User {
 
 // Agent 意图
 export interface Intent {
-  intent: 'book_room' | 'find_free_classroom' | 'repair' | 'navigate' | 'admin_overview' | 'unknown'
+  intent: 'book_room' | 'find_free_classroom' | 'repair' | 'navigate' | 'admin_overview' | 'unknown' | 'check_booking' | 'schedule_query'
   slots: {
     time?: string
     equipment?: string[]
@@ -90,6 +90,12 @@ export interface Intent {
     room?: string
     device?: string
     target?: string
+    hour?: number
+    minute?: number
+    duration?: number
+    startTime?: string
+    endTime?: string
+    capacity?: number
   }
   agent: string
   confidence: number

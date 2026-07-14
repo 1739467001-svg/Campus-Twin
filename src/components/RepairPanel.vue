@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useCampusStore } from '../stores/campusStore'
 
 const store = useCampusStore()
 const desc = ref('')
 
-// 从 store 获取 Agent 解析出的设备类型，或让用户手动选择
 const selectedDevice = ref('')
 const deviceType = computed(() => selectedDevice.value || store.repairDeviceSlot || 'projector')
 
@@ -14,10 +13,16 @@ const deviceOptions = [
   { value: 'ac', label: '空调' },
   { value: 'light', label: '灯光' },
   { value: 'mic', label: '麦克风' },
+  { value: 'whiteboard', label: '电子白板' },
+  { value: 'screen', label: '显示屏' },
+  { value: 'computer', label: '电脑' },
+  { value: 'network', label: '网络/WiFi' },
+  { value: 'lock', label: '门锁/门禁' },
+  { value: 'water', label: '饮水机' },
+  { value: 'fan', label: '风扇' },
+  { value: 'furniture', label: '桌椅' },
 ]
 
-// Agent 设置 repairDeviceSlot 时自动同步
-import { watch } from 'vue'
 watch(() => store.repairDeviceSlot, (v) => { if (v) selectedDevice.value = v })
 
 function getBuildingForRoom(roomId: string): string {
@@ -34,8 +39,8 @@ function statusLabel(s: string) {
 }
 
 function statusColor(s: string) {
-  const m: Record<string, string> = { new: 'bg-yellow-100 text-yellow-700', doing: 'bg-blue-100 text-blue-700', done: 'bg-green-100 text-green-700' }
-  return m[s] || 'bg-slate-100 text-slate-500'
+  const m: Record<string, string> = { new: 'bg-red-500/20 text-red-400', doing: 'bg-zjgsu-blue-500/20 text-zjgsu-blue-400', done: 'bg-green-500/20 text-green-400' }
+  return m[s] || 'bg-zjgsu-blue-500/10 text-zjgsu-blue-200/60'
 }
 
 function submit() {
@@ -49,66 +54,68 @@ function submit() {
 </script>
 
 <template>
-  <div class="animate-slideUp">
-    <div class="px-4 py-3 border-b border-slate-100 bg-white">
-      <h3 class="font-semibold text-slate-800 text-sm flex items-center gap-2">
-        <svg class="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17l-5.7-3.29a.75.75 0 01-.02-1.3l5.7-3.29a.75.75 0 01.76 0l5.7 3.29a.75.75 0 01.02 1.3l-5.7 3.29a.75.75 0 01-.76 0zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+  <div class="animate-slide-up">
+    <div class="px-3 py-2 border-b border-zjgsu-blue-500/10 bg-zjgsu-blue-900/30">
+      <h3 class="text-xs font-semibold text-white flex items-center gap-1.5">
+        <span class="w-1 h-2.5 rounded-full bg-gradient-to-b from-red-400 to-red-600"></span>
         设备报修
       </h3>
     </div>
 
-    <!-- 报修表单 -->
-    <div class="p-4 space-y-3">
+    <div class="p-3 space-y-2">
       <template v-if="store.selectedRoom">
-        <div class="bg-red-50 rounded-lg p-3 border border-red-200">
-          <div class="text-xs text-red-600 font-medium mb-1">故障位置</div>
-          <div class="text-sm font-semibold text-slate-800">{{ getBuildingForRoom(store.selectedRoom.id) }} {{ store.selectedRoom.name }}</div>
+        <div class="bg-red-500/8 rounded-lg p-2.5 border border-red-500/15">
+          <div class="text-[9px] text-red-400 font-medium mb-1">故障位置</div>
+          <div class="text-xs font-semibold text-white">{{ getBuildingForRoom(store.selectedRoom.id) }} {{ store.selectedRoom.name }}</div>
         </div>
-        <!-- 设备类型选择 -->
         <div>
-          <label class="text-xs text-slate-500 block mb-1">故障设备</label>
-          <div class="flex flex-wrap gap-1.5">
+          <label class="text-[9px] text-zjgsu-blue-200/50 block mb-1">故障设备</label>
+          <div class="flex flex-wrap gap-1">
             <button v-for="opt in deviceOptions" :key="opt.value"
               @click="selectedDevice = opt.value"
-              class="text-[11px] px-2.5 py-1 rounded-full border transition-colors cursor-pointer"
-              :class="deviceType === opt.value ? 'bg-orange-500 text-white border-orange-500' : 'border-slate-200 text-slate-600 hover:border-orange-300'">
+              class="text-[9px] px-2 py-0.5 rounded-md border transition-colors cursor-pointer"
+              :class="deviceType === opt.value ? 'bg-red-500/15 text-red-400 border-red-500/30' : 'border-zjgsu-blue-500/10 text-zjgsu-blue-200/50 hover:border-red-500/20'">
               {{ opt.label }}
             </button>
           </div>
         </div>
         <div>
-          <label class="text-xs text-slate-500 block mb-1">故障描述</label>
-          <textarea v-model="desc" rows="3"
-            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none placeholder:text-slate-400"
-            placeholder="描述故障情况，如：投影仪无法开机..."></textarea>
+          <label class="text-[9px] text-zjgsu-blue-200/50 block mb-1">故障描述</label>
+          <textarea v-model="desc" rows="2"
+            class="glass-input w-full px-2 py-1.5 text-[10px] resize-none"
+            placeholder="描述故障情况..."></textarea>
         </div>
         <button @click="submit"
-          class="w-full h-9 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition-colors cursor-pointer">
+          class="w-full py-1.5 rounded-lg bg-red-500/15 text-red-400 border border-red-500/25 text-[10px] font-medium hover:bg-red-500/25 transition-colors cursor-pointer">
           提交报修工单
         </button>
       </template>
       <template v-else>
-        <div class="text-center text-slate-400 text-sm py-6">
-          <p>请在地图上点击故障房间，或告诉我具体位置</p>
-          <p class="text-xs mt-1">例如："商大楼302投影坏了"</p>
+        <div class="text-center text-zjgsu-blue-200/40 text-xs py-4">
+          <div class="w-10 h-10 rounded-xl bg-zjgsu-blue-500/8 flex items-center justify-center mx-auto mb-2">
+            <span class="text-xl">🔧</span>
+          </div>
+          <p>请在3D场景中点击故障房间</p>
+          <p class="text-[9px] mt-1">或告诉Agent具体位置</p>
         </div>
       </template>
     </div>
 
-    <!-- 已有工单 -->
-    <div class="border-t border-slate-200 p-3">
-      <h4 class="text-xs font-semibold text-slate-600 mb-2">报修工单</h4>
+    <div class="border-t border-zjgsu-blue-500/5 p-3">
+      <h4 class="text-[9px] font-semibold text-zjgsu-blue-200/50 mb-2 flex items-center gap-1">
+        <span class="text-red-400">📋</span> 报修工单
+      </h4>
       <div v-for="tk in store.tickets" :key="tk.id"
-        class="border border-slate-200 rounded-lg p-2.5 mb-2">
+        class="glass-card p-2 mb-1.5">
         <div class="flex items-center justify-between mb-1">
-          <span class="text-xs font-medium text-slate-700">{{ getBuildingForRoom(tk.roomId) }} {{ store.findRoomById(tk.roomId)?.name }}</span>
-          <span class="text-[10px] px-1.5 py-0.5 rounded-full" :class="statusColor(tk.status)">{{ statusLabel(tk.status) }}</span>
+          <span class="text-[10px] font-medium text-white">{{ getBuildingForRoom(tk.roomId) }} {{ store.findRoomById(tk.roomId)?.name }}</span>
+          <span class="text-[9px] px-1.5 py-0.5 rounded" :class="statusColor(tk.status)">{{ statusLabel(tk.status) }}</span>
         </div>
-        <div class="text-[11px] text-slate-500 mb-1">{{ tk.desc }}</div>
-        <div class="flex items-center justify-between text-[10px] text-slate-400">
+        <div class="text-[9px] text-zjgsu-blue-200/40 mb-1">{{ tk.desc }}</div>
+        <div class="flex items-center justify-between text-[9px] text-zjgsu-blue-200/30">
           <span>{{ tk.assignee }} · {{ tk.createdAt }}</span>
           <button v-if="tk.status !== 'done'" @click.stop="store.advanceTicket(tk.id)"
-            class="text-blue-600 hover:underline cursor-pointer">推进状态 →</button>
+            class="text-zjgsu-blue-400 hover:text-zjgsu-blue-300 cursor-pointer">推进</button>
         </div>
       </div>
     </div>
